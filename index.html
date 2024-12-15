@@ -167,7 +167,8 @@
     let doorClosed = false;
     let ventSealed = false;
     let sealingDoor = false;
-    let springtrapPosition = 5; 
+    let springtrapPosition = 5;
+    let ventTimerActive = false; // For tracking vent timing
     let systems = {
         audio: true,
         vent: true,
@@ -188,7 +189,8 @@
         doorClosed = false;
         ventSealed = false;
         sealingDoor = false;
-        springtrapPosition = 5; 
+        springtrapPosition = 5;
+        ventTimerActive = false;
         systems.audio = true;
         systems.vent = true;
         systems.camera = true;
@@ -198,7 +200,6 @@
         document.getElementById('ventStatus').innerText = 'Відкрита';
         updateSystemStatus();
         showCurrentHallway();
-        moveSpringtrap(); 
 
         gameInterval = setInterval(() => {
             if (isGameOver) return;
@@ -225,41 +226,69 @@
     }
 
     function moveSpringtrap() {
-        if (!systems.camera) return;
+        if (!systems.camera || ventTimerActive) return;
 
-        if (springtrapPosition === 5) {
-            springtrapPosition = 4;
-        } else if (springtrapPosition === 4) {
-            springtrapPosition = 3;
-        } else if (springtrapPosition === 3) {
-            if (ventSealed) {
-                springtrapPosition = 2; 
-            } else {
-                if (Math.random() < 0.5) {
-                    springtrapPosition = 1; 
-                } else {
-                    springtrapPosition = 2; 
-                }
+        if (Math.random() < 1 / 3) { // 1/3 chance to move
+            let nextPosition;
+
+            switch (springtrapPosition) {
+                case 1:
+                    nextPosition = 2;
+                    break;
+                case 2:
+                    nextPosition = Math.random() < 0.5 ? 1 : 3;
+                    break;
+                case 3:
+                    if (!ventSealed && Math.random() < 0.5) {
+                        nextPosition = 'vent';
+                    } else {
+                        nextPosition = Math.random() < 0.5 ? 2 : 4;
+                    }
+                    break;
+                case 4:
+                    nextPosition = Math.random() < 0.5 ? 3 : 5;
+                    break;
+                case 5:
+                    nextPosition = 4;
+                    break;
+                case 'vent':
+                    nextPosition = 3;
+                    break;
             }
-        } else if (springtrapPosition === 2) {
-            springtrapPosition = 1;
-        } else if (springtrapPosition === 1 && !doorClosed) {
-            endGame("Гра закінчена! Спрингтрап потрапив у ваш офіс!");
-            return;
-        }
 
+            springtrapPosition = nextPosition;
+
+            if (nextPosition === 'vent') {
+                enterVent();
+            } else if (nextPosition === 1 && !doorClosed) {
+                endGame("Гра закінчена! Спрингтрап потрапив у ваш офіс!");
+                return;
+            }
+
+            showCurrentHallway();
+        }
+    }
+
+    function enterVent() {
+        ventTimerActive = true;
         showCurrentHallway();
+
+        setTimeout(() => {
+            springtrapPosition = 3;
+            ventTimerActive = false;
+            showCurrentHallway();
+        }, 5000);
     }
 
     function showCurrentHallway() {
         const hallways = document.querySelectorAll('.hallway');
-        hallways.forEach(hallway => {
-            hallway.style.display = 'none';
-        });
+        hallways.forEach(hallway => hallway.style.display = 'none');
 
-        document.getElementById('hallway' + springtrapPosition).style.display = 'flex';
-        document.getElementById('springtrap').style.left = '50%';
-        document.getElementById('springtrap').style.transform = 'translate(-50%, 0)';
+        if (springtrapPosition === 'vent') {
+            document.getElementById('hallway3').style.display = 'flex';
+        } else {
+            document.getElementById(`hallway${springtrapPosition}`).style.display = 'flex';
+        }
     }
 
     function endGame(message) {
@@ -267,8 +296,8 @@
         clearInterval(gameInterval);
         clearInterval(countdownInterval);
         clearInterval(systemFailureInterval);
-        document.getElementById('message').innerText = message;
         document.getElementById('gameOverScreen').style.display = 'block';
+        document.getElementById('message').innerText = message;
     }
 
     function endWin() {
@@ -279,69 +308,19 @@
         document.getElementById('winScreen').style.display = 'block';
     }
 
-    function sealDoor() {
-        if (sealingDoor || doorClosed) return;
-        sealingDoor = true;
-        playSound(); // Play sound effect for sealing door
-        setTimeout(() => {
-            doorClosed = true;
-            sealingDoor = false;
-            document.getElementById('doorButton').innerText = 'Відкрити двері';
-        }, 3000); // Delay 3 seconds for door closing
-    }
-
-    function switchCamera() {
-        if (isGameOver) return;
-        currentCamera++;
-        if (currentCamera > 5) currentCamera = 1;
-        showCurrentHallway();
-    }
-
-    function lureSpringtrap(camera) {
-        if (isGameOver) return;
-        springtrapPosition = camera;
-        showCurrentHallway();
+    function updateSystemStatus() {
+        document.getElementById('audioStatus').innerText = systems.audio ? 'Справна' : 'Не справна';
+        document.getElementById('ventStatus').innerText = systems.vent ? 'Відкрита' : 'Запечатана';
+        document.getElementById('cameraStatus').innerText = systems.camera ? 'Справні' : 'Не справні';
     }
 
     function sealVent() {
-        ventSealed = true;
-        document.getElementById('ventStatus').innerText = 'Запечатана';
-        alert('Вентиляція запечатана!');
-    }
-
-    function playAudio() {
-        if (isGameOver || audioCooldown) return;
-        playSound();
-        audioCooldown = true;
-        setTimeout(() => {
-            audioCooldown = false;
-        }, 3000); // Cooldown for 3 seconds
-    }
-
-    function updateSystemStatus() {
-        document.getElementById('audioStatus').innerText = systems.audio ? 'Справна' : 'Не працює';
-        document.getElementById('ventStatus').innerText = systems.vent ? 'Відкрита' : 'Запечатана';
-        document.getElementById('cameraStatus').innerText = systems.camera ? 'Справні' : 'Не працюють';
-    }
-
-    function resetSystem() {
-        systems.audio = true;
-        systems.vent = true;
-        systems.camera = true;
-        updateSystemStatus();
-        alert('Системи перезавантажено!');
-    }
-
-    function switchToOffice() {
-        if (isGameOver) return;
-        document.getElementById('office').style.display = 'flex';
-        const hallways = document.querySelectorAll('.hallway');
-        hallways.forEach(hallway => {
-            hallway.style.display = 'none';
-        });
+        if (!ventSealed) {
+            ventSealed = true;
+            document.getElementById('ventStatus').innerText = 'Запечатана';
+        }
     }
 </script>
 
 </body>
 </html>
-
